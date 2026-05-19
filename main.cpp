@@ -185,6 +185,187 @@ GLuint makeMountain(){
     }
     return upload(d,W,H,GL_CLAMP_TO_EDGE);
 }
+
+void drawTree(){
+    // trunk
+    glColor3f(0.35, 0.18, 0.08);
+    glPushMatrix(); glTranslatef(-0.2,0,-0.2); glScalef(0.4, 1.5, 0.4); cube(); glPopMatrix();
+    // foliage (3 cones stacked)
+    glColor3f(0.15, 0.55, 0.18);
+    glPushMatrix();
+        glTranslatef(0, 1.2, 0);
+        glRotatef(-90, 1, 0, 0);
+        glutSolidCone(1.2, 1.5, 12, 4);
+    glPopMatrix();
+    glPushMatrix();
+        glTranslatef(0, 2.2, 0);
+        glRotatef(-90, 1, 0, 0);
+        glutSolidCone(0.9, 1.3, 12, 4);
+    glPopMatrix();
+    glPushMatrix();
+        glTranslatef(0, 3.0, 0);
+        glRotatef(-90, 1, 0, 0);
+        glutSolidCone(0.6, 1.0, 12, 4);
+    glPopMatrix();
+}
+
+void drawTrees(){
+    // Place trees along the road, scrolled with world
+    for (int i=-3; i<=3; i++){
+        float baseZ = i * 18.0f + fmodf(worldOffset, 18.0f);
+        // left side
+        glPushMatrix();  glTranslatef(-9,  0, baseZ);       drawTree(); glPopMatrix();
+        glPushMatrix();  glTranslatef(-15, 0, baseZ + 5);   drawTree(); glPopMatrix();
+        glPushMatrix();  glTranslatef(-22, 0, baseZ - 4);   drawTree(); glPopMatrix();
+        // right side
+        glPushMatrix();  glTranslatef( 9,  0, baseZ + 9);   drawTree(); glPopMatrix();
+        glPushMatrix();  glTranslatef( 14, 0, baseZ + 2);   drawTree(); glPopMatrix();
+        glPushMatrix();  glTranslatef( 22, 0, baseZ - 7);   drawTree(); glPopMatrix();
+    }
+}
+
+
+// =====================================================================
+//   HOUSE (with lit windows = "view of external environment")
+// =====================================================================
+void drawHouse(){
+    // body (brick)
+    useTex(texBrick);
+    glPushMatrix(); glTranslatef(-2,0,-2); glScalef(4, 2.5, 4); cube(); glPopMatrix();
+    noTex();
+    // roof (red triangular prism approximated)
+    glColor3f(0.6, 0.15, 0.1);
+    glBegin(GL_TRIANGLES);
+        // front gable
+        glNormal3f(0,0.5,0.5);
+        glVertex3f(-2, 2.5, -2); glVertex3f( 2, 2.5, -2); glVertex3f( 0, 4,   -2);
+        // back gable
+        glNormal3f(0,0.5,-0.5);
+        glVertex3f(-2, 2.5, 2);  glVertex3f( 0, 4,   2);  glVertex3f( 2, 2.5, 2);
+    glEnd();
+    glBegin(GL_QUADS);
+        // left slope
+        glNormal3f(-0.7,0.7,0);
+        glVertex3f(-2,2.5,-2); glVertex3f(-2,2.5, 2); glVertex3f(0,4, 2); glVertex3f(0,4,-2);
+        // right slope
+        glNormal3f(0.7,0.7,0);
+        glVertex3f(2,2.5,-2); glVertex3f(0,4,-2); glVertex3f(0,4, 2); glVertex3f(2,2.5, 2);
+    glEnd();
+
+    // glowing windows (rubric req #6: lit interior visible from outside)
+    glDisable(GL_LIGHTING);
+    glColor3f(1.0, 0.9, 0.4);    // warm interior glow
+    // front windows
+    glBegin(GL_QUADS);
+        glNormal3f(0,0,-1);
+        glVertex3f(-1.4, 0.8, -2.01); glVertex3f(-0.4, 0.8, -2.01);
+        glVertex3f(-0.4, 1.7, -2.01); glVertex3f(-1.4, 1.7, -2.01);
+
+        glVertex3f(0.4, 0.8, -2.01);  glVertex3f(1.4, 0.8, -2.01);
+        glVertex3f(1.4, 1.7, -2.01);  glVertex3f(0.4, 1.7, -2.01);
+    glEnd();
+    glEnable(GL_LIGHTING);
+
+    // window cross-bars (mullions)
+    glColor3f(0.2, 0.1, 0.05);
+    glPushMatrix(); glTranslatef(-1.45,1.2,-2.04); glScalef(1.1,0.06,0.04); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(-0.93,0.85,-2.04); glScalef(0.06,0.85,0.04); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(0.35,1.2,-2.04);  glScalef(1.1,0.06,0.04); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(0.87,0.85,-2.04); glScalef(0.06,0.85,0.04); cube(); glPopMatrix();
+
+    // door
+    useTex(texWood);
+    glPushMatrix(); glTranslatef(-0.4, 0, -2.05); glScalef(0.8, 1.6, 0.05); cube(); glPopMatrix();
+    noTex();
+}
+
+
+// =====================================================================
+//   BILLBOARD (picture frame requirement)
+// =====================================================================
+void drawBillboard(){
+    // posts
+    useTex(texWood);
+    glPushMatrix(); glTranslatef(-2.5,0,0); glScalef(0.25, 5, 0.25); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef( 2.25,0,0);glScalef(0.25, 5, 0.25); cube(); glPopMatrix();
+    noTex();
+
+    // frame
+    glColor3f(0.25, 0.12, 0.05);
+    glPushMatrix(); glTranslatef(-2.7, 4, -0.05); glScalef(5.4, 0.2, 0.1); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(-2.7, 1.8,-0.05);glScalef(5.4, 0.2, 0.1); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(-2.7, 1.8,-0.05);glScalef(0.2, 2.4, 0.1); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef( 2.5, 1.8,-0.05);glScalef(0.2, 2.4, 0.1); cube(); glPopMatrix();
+
+    // picture
+    useTex(texBoard);
+    glBegin(GL_QUADS);
+        glNormal3f(0,0,1);
+        glTexCoord2f(0,0); glVertex3f(-2.5, 2.0, 0);
+        glTexCoord2f(1,0); glVertex3f( 2.5, 2.0, 0);
+        glTexCoord2f(1,1); glVertex3f( 2.5, 4.0, 0);
+        glTexCoord2f(0,1); glVertex3f(-2.5, 4.0, 0);
+    glEnd();
+    noTex();
+}
+
+
+// =====================================================================
+//   WINDMILL (continuous rotation in distance)
+// =====================================================================
+void drawWindmill(){
+    // tower
+    useTex(texBrick);
+    glPushMatrix(); glTranslatef(-0.4,0,-0.4); glScalef(0.8, 6, 0.8); cube(); glPopMatrix();
+    noTex();
+    // hub
+    glColor3f(0.7, 0.7, 0.7);
+    glPushMatrix();
+        glTranslatef(0, 6, 0.5);
+        glutSolidSphere(0.3, 12, 10);
+        // blades
+        glRotatef(windmillAngle, 0, 0, 1);    // CONTINUOUS rotation
+        glColor3f(0.95, 0.95, 0.9);
+        for (int i=0;i<3;i++){
+            glPushMatrix();
+                glRotatef(i*120, 0, 0, 1);
+                glTranslatef(0, 0.1, -0.05);
+                glScalef(0.1, 2.5, 0.1);
+                cube();
+            glPopMatrix();
+        }
+    glPopMatrix();
+}
+
+
+// =====================================================================
+//   SUN + SKY + MOUNTAINS (background)
+// =====================================================================
+void drawSky(){
+    glDisable(GL_LIGHTING);
+
+
+useTex(texMountain);
+
+glBegin(GL_QUADS);
+
+glTexCoord2f(0,1);
+glVertex3f(-200,-20,-120);
+
+glTexCoord2f(1,1);
+glVertex3f(200,-20,-120);
+
+glTexCoord2f(1,0);
+glVertex3f(200,90,-120);
+
+glTexCoord2f(0,0);
+glVertex3f(-200,90,-120);
+
+glEnd();
+
+noTex();
+
+}
 int main(int argc, char* argv[])
 {
     glutInit(&argc, argv);
