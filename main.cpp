@@ -366,6 +366,80 @@ glEnd();
 noTex();
 
 }
+// =====================================================================
+//   CAR  (used for player and obstacles)
+// =====================================================================
+void drawWheel(){
+    glColor3f(0.08, 0.08, 0.08);
+    glPushMatrix();
+        glRotatef(90, 0, 1, 0);            // axle along X
+        glRotatef(wheelAngle, 0, 0, 1);    // CONTINUOUS rotation
+        glutSolidTorus(0.15, 0.35, 10, 18);
+        // hub
+        glColor3f(0.6, 0.6, 0.6);
+        glutSolidSphere(0.18, 10, 8);
+        // spokes
+        glColor3f(0.4, 0.4, 0.45);
+        for (int i=0;i<4;i++){
+            glPushMatrix();
+                glRotatef(i*45, 0, 0, 1);
+                glTranslatef(-0.02, -0.02, -0.08);
+                glScalef(0.04, 0.32, 0.16);
+                cube();
+            glPopMatrix();
+        }
+    glPopMatrix();
+}
+
+void drawCar(float r, float g, float b){
+    // chassis
+    glColor3f(r*0.6f, g*0.6f, b*0.6f);
+    glPushMatrix(); glTranslatef(-0.9, 0.2, -1.6); glScalef(1.8, 0.25, 3.2); cube(); glPopMatrix();
+
+    // body
+    glColor3f(r, g, b);
+    glPushMatrix(); glTranslatef(-0.9, 0.45, -1.6); glScalef(1.8, 0.55, 3.2); cube(); glPopMatrix();
+
+    // cabin
+    glColor3f(r*0.85f, g*0.85f, b*0.85f);
+    glPushMatrix(); glTranslatef(-0.75, 1.0, -1.0); glScalef(1.5, 0.55, 1.8); cube(); glPopMatrix();
+
+    // windshield (bluish glass)
+    glDisable(GL_LIGHTING);
+    glColor3f(0.4, 0.6, 0.9);
+    glBegin(GL_QUADS);
+        // front
+        glVertex3f(-0.7, 1.05, -1.05); glVertex3f( 0.7, 1.05, -1.05);
+        glVertex3f( 0.7, 1.5,  -1.05); glVertex3f(-0.7, 1.5,  -1.05);
+        // rear
+        glVertex3f(-0.7, 1.05, 0.85);  glVertex3f(-0.7, 1.5,  0.85);
+        glVertex3f( 0.7, 1.5,  0.85);  glVertex3f( 0.7, 1.05, 0.85);
+        // sides
+        glColor3f(0.5, 0.7, 0.95);
+        glVertex3f(-0.76, 1.05, -1.05); glVertex3f(-0.76, 1.5, -1.05);
+        glVertex3f(-0.76, 1.5,  0.85);  glVertex3f(-0.76, 1.05, 0.85);
+        glVertex3f( 0.76, 1.05, -1.05); glVertex3f( 0.76, 1.05, 0.85);
+        glVertex3f( 0.76, 1.5,  0.85);  glVertex3f( 0.76, 1.5, -1.05);
+    glEnd();
+    glEnable(GL_LIGHTING);
+
+    // headlights (yellow circles on front)
+    glDisable(GL_LIGHTING);
+    glColor3f(1.0, 1.0, 0.7);
+    glPushMatrix(); glTranslatef(-0.55, 0.55, -1.65); glutSolidSphere(0.13, 10, 8); glPopMatrix();
+    glPushMatrix(); glTranslatef( 0.55, 0.55, -1.65); glutSolidSphere(0.13, 10, 8); glPopMatrix();
+    // tail lights (red, on back)
+    glColor3f(1.0, 0.15, 0.1);
+    glPushMatrix(); glTranslatef(-0.55, 0.55, 1.55); glutSolidSphere(0.1, 10, 8); glPopMatrix();
+    glPushMatrix(); glTranslatef( 0.55, 0.55, 1.55); glutSolidSphere(0.1, 10, 8); glPopMatrix();
+    glEnable(GL_LIGHTING);
+
+    // wheels (4 corners)
+    glPushMatrix(); glTranslatef(-0.85, 0.35, -1.0); drawWheel(); glPopMatrix();
+    glPushMatrix(); glTranslatef( 0.85, 0.35, -1.0); drawWheel(); glPopMatrix();
+    glPushMatrix(); glTranslatef(-0.85, 0.35,  1.0); drawWheel(); glPopMatrix();
+    glPushMatrix(); glTranslatef( 0.85, 0.35,  1.0); drawWheel(); glPopMatrix();
+}
 int main(int argc, char* argv[])
 {
     glutInit(&argc, argv);
