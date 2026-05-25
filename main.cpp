@@ -440,6 +440,77 @@ void drawCar(float r, float g, float b){
     glPushMatrix(); glTranslatef(-0.85, 0.35,  1.0); drawWheel(); glPopMatrix();
     glPushMatrix(); glTranslatef( 0.85, 0.35,  1.0); drawWheel(); glPopMatrix();
 }
+
+// =====================================================================
+//   LIGHTS
+// =====================================================================
+void setupLights(){
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    GLfloat amb[]={0.35f,0.35f,0.4f,1};
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, amb);
+}
+void applyLights(){
+    if(light0On){                                  // sun (directional)
+        GLfloat p[]={ 0.5f, 1.0f, 0.4f, 0.0f };    // w=0 = directional
+        GLfloat d[]={ 1.0f, 0.95f, 0.85f, 1};
+        glLightfv(GL_LIGHT0,GL_POSITION,p);
+        glLightfv(GL_LIGHT0,GL_DIFFUSE, d);
+        glEnable(GL_LIGHT0);
+    } else glDisable(GL_LIGHT0);
+
+    if(light1On){                                  // headlights
+        GLfloat p[]={playerX, 0.6f, -1.6f, 1};
+        GLfloat d[]={1, 1, 0.7f, 1};
+        GLfloat dir[]={0,0,-1};
+        glLightfv(GL_LIGHT1,GL_POSITION,p);
+        glLightfv(GL_LIGHT1,GL_DIFFUSE, d);
+        glLightfv(GL_LIGHT1,GL_SPOT_DIRECTION, dir);
+        glLightf (GL_LIGHT1,GL_SPOT_CUTOFF, 35.0f);
+        glLightf (GL_LIGHT1,GL_SPOT_EXPONENT, 8.0f);
+        glEnable(GL_LIGHT1);
+    } else glDisable(GL_LIGHT1);
+
+    if(light2On){                                  // street lamp
+        GLfloat p[]={ 6, 4, -8, 1 };
+        GLfloat d[]={ 1, 0.85f, 0.5f, 1 };
+        glLightfv(GL_LIGHT2,GL_POSITION,p);
+        glLightfv(GL_LIGHT2,GL_DIFFUSE, d);
+        glEnable(GL_LIGHT2);
+    } else glDisable(GL_LIGHT2);
+
+    if(light3On){                                  // sky fill
+        GLfloat p[]={ 0, 1, 1, 0 };
+        GLfloat d[]={ 0.3f, 0.35f, 0.45f, 1 };
+        glLightfv(GL_LIGHT3,GL_POSITION,p);
+        glLightfv(GL_LIGHT3,GL_DIFFUSE, d);
+        glEnable(GL_LIGHT3);
+    } else glDisable(GL_LIGHT3);
+}
+
+
+
+//   STREET LAMPS
+
+void drawStreetLamp(){
+    glColor3f(0.2,0.2,0.25);
+    glPushMatrix(); glTranslatef(-0.1,0,-0.1); glScalef(0.2, 4, 0.2); cube(); glPopMatrix();
+    glPushMatrix(); glTranslatef(0,4,0); glScalef(1.5, 0.1, 0.1); cube(); glPopMatrix();
+    glDisable(GL_LIGHTING);
+    if (light2On) glColor3f(1.0,0.9,0.5); else glColor3f(0.3,0.3,0.3);
+    glPushMatrix(); glTranslatef(1.5,3.85,0); glutSolidSphere(0.25, 12, 10); glPopMatrix();
+    glEnable(GL_LIGHTING);
+}
+
+void drawStreetLamps(){
+    for (int i=-2; i<=2; i++){
+        float baseZ = i*22.0f + fmodf(worldOffset, 22.0f);
+        glPushMatrix(); glTranslatef( 6, 0, baseZ); drawStreetLamp(); glPopMatrix();
+        glPushMatrix(); glTranslatef(-6, 0, baseZ); glRotatef(180,0,1,0); drawStreetLamp(); glPopMatrix();
+    }
+}
 int main(int argc, char* argv[])
 {
     glutInit(&argc, argv);
