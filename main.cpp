@@ -511,6 +511,100 @@ void drawStreetLamps(){
         glPushMatrix(); glTranslatef(-6, 0, baseZ); glRotatef(180,0,1,0); drawStreetLamp(); glPopMatrix();
     }
 }
+
+// =====================================================================
+//   GAME LOGIC
+// =====================================================================
+void spawnObstacle(){
+    for (int i=0;i<MAX_OB;i++){
+        if (!obs[i].active){
+            obs[i].active = true;
+            obs[i].zBase  = -60.0f - worldOffset - (rand()%20);
+            obs[i].lane   = rand()%3;
+            obs[i].color  = rand()%4;
+            return;
+        }
+    }
+}
+void spawnCoin(){
+    for (int i=0;i<MAX_COIN;i++){
+        if (!coins[i].active){
+            coins[i].active = true;
+            coins[i].zBase  = -60.0f - worldOffset - (rand()%30);
+            coins[i].lane   = rand()%3;
+            coins[i].spin   = 0;
+            return;
+        }
+    }
+}
+
+float effZ(float zBase){ return zBase + worldOffset; }
+
+void updateGame(float dt){
+    if (gameOver) return;
+
+    wheelAngle    -= scrollSpeed * 80;
+    if (wheelAngle < -3600) wheelAngle += 360;
+    windmillAngle += 1.5f; if (windmillAngle > 360) windmillAngle -= 360;
+    beaconAngle   += 4.0f; if (beaconAngle > 360) beaconAngle -= 360;
+
+    worldOffset += scrollSpeed;
+    distance_   += scrollSpeed * 0.1f;
+    score       += 1;                               // survive bonus
+
+    // gradually faster
+    if (scrollSpeed < 0.7f) scrollSpeed += 0.0002f;
+
+    // smooth lane change
+    float tx = laneX[targetLane];
+    if (fabs(playerX - tx) > 0.05f) playerX += (tx - playerX) * 0.25f;
+    else playerX = tx;
+
+    // spawning
+    spawnObTimer   += dt;
+    spawnCoinTimer += dt;
+    if (spawnObTimer   > 1.3f) { spawnObTimer   = 0; spawnObstacle(); }
+    if (spawnCoinTimer > 0.9f) { spawnCoinTimer = 0; spawnCoin();     }
+
+    // update / collide obstacles
+    for (int i=0;i<MAX_OB;i++){
+        if (!obs[i].active) continue;
+        float z = effZ(obs[i].zBase);
+        if (z > 6) { obs[i].active = false; continue; }
+        // collision: player at z=0
+        if (z > -1.5f && z < 1.5f) {
+            float dx = laneX[obs[i].lane] - playerX;
+            if (fabs(dx) < 1.2f) {
+                obs[i].active = false;
+                lives--;
+                if (lives <= 0) gameOver = true;
+            }
+        }
+    }
+    // update / collect coins
+    for (int i=0;i<MAX_COIN;i++){
+        if (!coins[i].active) continue;
+        coins[i].spin += 4;
+        float z = effZ(coins[i].zBase);
+        if (z > 6) { coins[i].active = false; continue; }
+        if (z > -1.0f && z < 1.0f) {
+            float dx = laneX[coins[i].lane] - playerX;
+            if (fabs(dx) < 1.0f) {
+                coins[i].active = false;
+                score += 50;
+            }
+        }
+    }
+}
+
+void resetGame(){
+    score = 0; lives = 3; distance_ = 0;
+    gameOver = false;
+    worldOffset = 0; scrollSpeed = 0.35f;
+    targetLane = 1; playerX = 0;
+    for (int i=0;i<MAX_OB;i++)   obs[i].active   = false;
+    for (int i=0;i<MAX_COIN;i++) coins[i].active = false;
+}
 int main(int argc, char* argv[])
 {
     glutInit(&argc, argv);
