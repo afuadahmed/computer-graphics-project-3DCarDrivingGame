@@ -605,6 +605,187 @@ void resetGame(){
     for (int i=0;i<MAX_OB;i++)   obs[i].active   = false;
     for (int i=0;i<MAX_COIN;i++) coins[i].active = false;
 }
+
+// =====================================================================
+//   HUD
+// =====================================================================
+void drawText(float x, float y, const char* s){
+    glRasterPos2f(x,y);
+    while(*s) glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, *s++);
+}
+void drawTextBig(float x, float y, const char* s){
+    glRasterPos2f(x,y);
+    while(*s) glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, *s++);
+}
+void drawHUD(){
+    glDisable(GL_LIGHTING); glDisable(GL_DEPTH_TEST);
+    glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
+    gluOrtho2D(0,winW,0,winH);
+    glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity();
+
+    char buf[128];
+    glColor3f(1,1,0.4);
+    sprintf(buf,"Score: %d   Lives: %d   Distance: %.0f m   Speed: %.2f",
+            score, lives, distance_, scrollSpeed);
+    drawTextBig(20, winH-35, buf);
+
+    glColor3f(0.8, 0.95, 1.0);
+    drawText(20, 80, "Steer: LEFT / RIGHT arrows");
+    drawText(20, 55, "Avoid cars. Collect golden coins (+50).");
+    drawText(20, 30, "[1/2/3] camera  [F1-F4] lights  [x/y/z] rotate scene  [r] reset  [Esc] quit");
+
+    if (gameOver){
+        glColor3f(1, 0.2, 0.2);
+        drawTextBig(winW/2 - 90, winH/2, "GAME OVER");
+        glColor3f(1,1,1);
+        drawText(winW/2 - 110, winH/2 - 30, "Press R to restart");
+    }
+
+    glMatrixMode(GL_PROJECTION); glPopMatrix();
+    glMatrixMode(GL_MODELVIEW); glPopMatrix();
+    glEnable(GL_DEPTH_TEST); glEnable(GL_LIGHTING);
+}
+
+
+// =====================================================================
+//   GLUT CALLBACKS
+// =====================================================================
+static void resize(int w, int h){
+    winW=w; winH=h;
+    if(h==0) h=1;
+    float ar=(float)w/(float)h;
+    glViewport(0,0,w,h);
+    glMatrixMode(GL_PROJECTION); glLoadIdentity();
+    glFrustum(-ar,ar,-1,1,2,200);
+}
+
+static void display(){
+    glClearColor(0.55, 0.75, 0.95, 1);
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+
+    // Camera (viewing-coordinate transformation)
+    if (cameraMode == 1) {
+        gluLookAt(playerX, 4.0, 7.5,
+                  playerX, 1.5, -10,
+                  0, 1, 0);
+    } else if (cameraMode == 2) {
+        gluLookAt(0, 35, 0.01,
+                  0, 0, -15,
+                  0, 1, 0);
+    } else {
+        gluLookAt(playerX, 1.5, -0.5,
+                  playerX, 1.3, -10,
+                  0, 1, 0);
+    }
+
+    applyLights();
+
+    glPushMatrix();
+        glScalef(sceneScale, sceneScale, sceneScale);
+        glRotatef(degreeX, 1, 0, 0);
+        glRotatef(degreeY, 0, 1, 0);
+        glRotatef(degreeZ, 0, 0, 1);
+
+        drawSky();
+        drawGrass();
+        drawRoad();
+        drawTrees();
+        drawStreetLamps();
+
+        // Houses (2 of them, scrolled)
+        for (int s=-1; s<=1; s++){
+            float baseZ = s*60 + fmodf(worldOffset, 60.0f);
+            glPushMatrix(); glTranslatef(-13, 0, baseZ - 25); drawHouse(); glPopMatrix();
+            glPushMatrix(); glTranslatef( 13, 0, baseZ + 5); drawHouse(); glPopMatrix();
+        }
+
+        // Billboard
+        glPushMatrix();
+            glTranslatef( 9, 0, -25 + fmodf(worldOffset, 80.0f));
+            glRotatef(-90, 0, 1, 0);
+            drawBillboard();
+        glPopMatrix();
+
+        // Windmill (continuous rotation in distance)
+        glPushMatrix();
+            glTranslatef(-30, 0, -50);
+            drawWindmill();
+        glPopMatrix();
+
+        // Obstacle cars
+        float carCols[4][3] = { {0.9f,0.15f,0.15f}, {0.1f,0.4f,0.9f},
+                                {0.95f,0.7f,0.1f}, {0.5f,0.2f,0.7f} };
+        for (int i=0;i<MAX_OB;i++){
+            if (!obs[i].active) continue;
+            float z = effZ(obs[i].zBase);
+            glPushMatrix();
+                glTranslatef(laneX[obs[i].lane], 0, z);
+                glRotatef(180, 0, 1, 0);   // face player
+                drawCar(carCols[obs[i].color][0], carCols[obs[i].color][1], carCols[obs[i].color][2]);
+            glPopMatrix();
+        }
+
+        // Coins
+        for (int i=0;i<MAX_COIN;i++){
+            if (!coins[i].active) continue;
+            float z = effZ(coins[i].zBase);
+            glPushMatrix();
+                glTranslatef(laneX[coins[i].lane], 1.0, z);
+                drawCoin(coins[i].spin);
+            glPopMatrix();
+        }
+
+        // Player car
+        glPushMatrix();
+            glTranslatef(playerX, 0, 0);
+            drawCar(0.1f, 0.85f, 0.3f);    // green player
+        glPopMatrix();
+    glPopMatrix();
+
+    drawHUD();
+    glutSwapBuffers();
+}
+
+static void timerTick(int v){
+    updateGame(0.016f);
+    glutPostRedisplay();
+    glutTimerFunc(16, timerTick, 0);
+}
+
+static void key(unsigned char k, int x, int y){
+    switch(k){
+        case 27: exit(0);
+        case '1': cameraMode = 1; break;
+        case '2': cameraMode = 2; break;
+        case '3': cameraMode = 3; break;
+
+        case 'x': degreeX += 5; break;
+        case 'X': degreeX -= 5; break;
+        case 'y': degreeY += 5; break;
+        case 'Y': degreeY -= 5; break;
+        case 'z': degreeZ += 5; break;
+        case 'Z': degreeZ -= 5; break;
+        case '+': sceneScale *= 1.05f; break;
+        case '-': sceneScale /= 1.05f; break;
+
+        case 'r': case 'R': resetGame(); break;
+    }
+    glutPostRedisplay();
+}
+
+static void specialKey(int k, int x, int y){
+    if (gameOver) return;
+    switch(k){
+        case GLUT_KEY_LEFT:  if (targetLane > 0) targetLane--; break;
+        case GLUT_KEY_RIGHT: if (targetLane < 2) targetLane++; break;
+        case GLUT_KEY_F1: light0On=!light0On; break;
+        case GLUT_KEY_F2: light1On=!light1On; break;
+        case GLUT_KEY_F3: light2On=!light2On; break;
+        case GLUT_KEY_F4: light3On=!light3On; break;
+    }
+    glutPostRedisplay();
+}
 int main(int argc, char* argv[])
 {
     glutInit(&argc, argv);
