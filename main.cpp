@@ -1,3 +1,4 @@
+
 #include <windows.h>
 
 #ifdef __APPLE__
@@ -7,11 +8,73 @@
 #endif
 
 #include <stdlib.h>
+#include <bits/stdc++.h>
+using namespace std;
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
+// ---------- Camera ----------
+int    cameraMode = 1;     // 1=chase, 2=top, 3=first-person
+
+// ---------- Whole-scene transforms  ----------
+float degreeX=0, degreeY=0, degreeZ=0;
+float sceneScale = 1.0f;
+
+// ---------- Player ----------
+float laneX[3]   = { -3.0f, 0.0f, 3.0f };
+int   targetLane = 1;
+float playerX    = 0;
+float wheelAngle = 0;
+
+// ---------- World scrolling ----------
+float worldOffset = 0;     // increases over time -> objects "approach" player
+float scrollSpeed = 0.35f;
+
+// ---------- Continuous rotation ----------
+float windmillAngle = 0;
+float beaconAngle   = 0;
+
+// ---------- Lights (toggleable) ----------
+bool light0On = true;   // sun
+bool light1On = false;  // headlights
+bool light2On = false;  // street lamps
+bool light3On = true;   // ambient sky fill
+
+// ---------- Textures ----------
 GLuint texAsphalt=0, texGrass=0, texBrick=0, texWood=0, texSky=0,
        texBoard=0, texMountain=0;
 
-       GLuint upload(unsigned char* d, int W, int H, GLint wrap)
+// ---------- Obstacle cars ----------
+struct ObCar { float zBase; int lane; int color; bool active; };
+const int MAX_OB = 10;
+ObCar obs[MAX_OB];
+
+// ---------- Coins ----------
+struct Coin { float zBase; int lane; bool active; float spin; };
+const int MAX_COIN = 15;
+Coin coins[MAX_COIN];
+
+// ---------- Game state ----------
+int   score    = 0;
+int   lives    = 3;
+float distance_ = 0;
+bool  gameOver = false;
+float spawnObTimer    = 0;
+float spawnCoinTimer  = 0;
+
+// ---------- HUD ----------
+int winW = 1024, winH = 700;
+
+
+// =====================================================================
+//   PROCEDURAL TEXTURES
+// =====================================================================
+GLuint upload(unsigned char* d, int W, int H, GLint wrap)
 {
     GLuint t;
     glGenTextures(1,&t);
@@ -186,6 +249,78 @@ GLuint makeMountain(){
     return upload(d,W,H,GL_CLAMP_TO_EDGE);
 }
 
+
+// =====================================================================
+//   PRIMITIVE: cube
+// =====================================================================
+void cube()
+{
+    glBegin(GL_QUADS);
+    glNormal3f(0,0,1);
+    glTexCoord2f(0,0);glVertex3f(0,0,1); glTexCoord2f(1,0);glVertex3f(1,0,1);
+    glTexCoord2f(1,1);glVertex3f(1,1,1); glTexCoord2f(0,1);glVertex3f(0,1,1);
+    glNormal3f(0,0,-1);
+    glTexCoord2f(0,0);glVertex3f(1,0,0); glTexCoord2f(1,0);glVertex3f(0,0,0);
+    glTexCoord2f(1,1);glVertex3f(0,1,0); glTexCoord2f(0,1);glVertex3f(1,1,0);
+    glNormal3f(-1,0,0);
+    glTexCoord2f(0,0);glVertex3f(0,0,0); glTexCoord2f(1,0);glVertex3f(0,0,1);
+    glTexCoord2f(1,1);glVertex3f(0,1,1); glTexCoord2f(0,1);glVertex3f(0,1,0);
+    glNormal3f(1,0,0);
+    glTexCoord2f(0,0);glVertex3f(1,0,1); glTexCoord2f(1,0);glVertex3f(1,0,0);
+    glTexCoord2f(1,1);glVertex3f(1,1,0); glTexCoord2f(0,1);glVertex3f(1,1,1);
+    glNormal3f(0,1,0);
+    glTexCoord2f(0,0);glVertex3f(0,1,1); glTexCoord2f(1,0);glVertex3f(1,1,1);
+    glTexCoord2f(1,1);glVertex3f(1,1,0); glTexCoord2f(0,1);glVertex3f(0,1,0);
+    glNormal3f(0,-1,0);
+    glTexCoord2f(0,0);glVertex3f(0,0,0); glTexCoord2f(1,0);glVertex3f(1,0,0);
+    glTexCoord2f(1,1);glVertex3f(1,0,1); glTexCoord2f(0,1);glVertex3f(0,0,1);
+    glEnd();
+}
+void useTex(GLuint t){ glColor3f(1,1,1); glEnable(GL_TEXTURE_2D); glBindTexture(GL_TEXTURE_2D,t); }
+void noTex(){ glDisable(GL_TEXTURE_2D); }
+
+
+// =====================================================================
+//   ROAD + GRASS
+// =====================================================================
+void drawRoad(){
+    // Two long road segments, scrolled, so it feels infinite
+    useTex(texAsphalt);
+    for (int seg=-2; seg<=2; seg++){
+        float zStart = seg*40 + fmodf(worldOffset, 40.0f);
+        glBegin(GL_QUADS);
+            glNormal3f(0,1,0);
+            glTexCoord2f(0,0);  glVertex3f(-5, 0.01, zStart-40);
+            glTexCoord2f(1,0);  glVertex3f( 5, 0.01, zStart-40);
+            glTexCoord2f(1,8);  glVertex3f( 5, 0.01, zStart);
+            glTexCoord2f(0,8);  glVertex3f(-5, 0.01, zStart);
+        glEnd();
+    }
+    noTex();
+}
+
+void drawGrass(){
+    useTex(texGrass);
+    glBegin(GL_QUADS);
+        glNormal3f(0,1,0);
+        // left grass
+        glTexCoord2f(0,0);  glVertex3f(-60, 0, -120);
+        glTexCoord2f(8,0);  glVertex3f(-5,  0, -120);
+        glTexCoord2f(8,30); glVertex3f(-5,  0,   30);
+        glTexCoord2f(0,30); glVertex3f(-60, 0,   30);
+        // right grass
+        glTexCoord2f(0,0);  glVertex3f( 5,  0, -120);
+        glTexCoord2f(8,0);  glVertex3f( 60, 0, -120);
+        glTexCoord2f(8,30); glVertex3f( 60, 0,   30);
+        glTexCoord2f(0,30); glVertex3f( 5,  0,   30);
+    glEnd();
+    noTex();
+}
+
+
+// =====================================================================
+//   TREE  (cone foliage on cube trunk)
+// =====================================================================
 void drawTree(){
     // trunk
     glColor3f(0.35, 0.18, 0.08);
@@ -366,6 +501,9 @@ glEnd();
 noTex();
 
 }
+
+
+
 // =====================================================================
 //   CAR  (used for player and obstacles)
 // =====================================================================
@@ -441,6 +579,29 @@ void drawCar(float r, float g, float b){
     glPushMatrix(); glTranslatef( 0.85, 0.35,  1.0); drawWheel(); glPopMatrix();
 }
 
+
+// =====================================================================
+//   COIN
+// =====================================================================
+void drawCoin(float spin){
+    glPushMatrix();
+        glRotatef(spin, 0, 1, 0);
+        glColor3f(1.0, 0.85, 0.1);
+        glPushMatrix();
+            glScalef(1.0, 1.0, 0.15);
+            glutSolidSphere(0.4, 16, 14);
+        glPopMatrix();
+        // dollar sign
+        glColor3f(0.7, 0.5, 0.05);
+        glPushMatrix();
+            glTranslatef(-0.05, -0.15, 0.05);
+            glScalef(0.1, 0.3, 0.05);
+            cube();
+        glPopMatrix();
+    glPopMatrix();
+}
+
+
 // =====================================================================
 //   LIGHTS
 // =====================================================================
@@ -511,6 +672,7 @@ void drawStreetLamps(){
         glPushMatrix(); glTranslatef(-6, 0, baseZ); glRotatef(180,0,1,0); drawStreetLamp(); glPopMatrix();
     }
 }
+
 
 // =====================================================================
 //   GAME LOGIC
@@ -605,6 +767,7 @@ void resetGame(){
     for (int i=0;i<MAX_OB;i++)   obs[i].active   = false;
     for (int i=0;i<MAX_COIN;i++) coins[i].active = false;
 }
+
 
 // =====================================================================
 //   HUD
@@ -786,11 +949,56 @@ static void specialKey(int k, int x, int y){
     }
     glutPostRedisplay();
 }
-int main(int argc, char* argv[])
-{
+
+
+// =====================================================================
+//   MAIN
+// =====================================================================
+int main(int argc, char* argv[]){
+    srand(42);
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    glutInitWindowSize(winW, winH);
+    glutInitWindowPosition(60, 40);
+    glutInitDisplayMode(GLUT_RGB|GLUT_DOUBLE|GLUT_DEPTH);
     glutCreateWindow("3D Car Driving Game");
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    texAsphalt  = makeAsphalt();
+    texGrass    = makeGrass();
+
+    texWood     = makeWood();
+    texSky      = makeSky();
+    texBrick =
+loadTexture(
+"C:\\Users\\CSE\\Downloads\\Graphics Lab Files\\Car Game\\texture images\\brick.jpg"
+);
+
+texBoard =
+loadTexture(
+"C:\\Users\\CSE\\Downloads\\Graphics Lab Files\\Car Game\\texture images\\mountain_road.jpg"
+);
+
+texMountain =
+loadTexture(
+"C:\\Users\\CSE\\Downloads\\Graphics Lab Files\\Car Game\\texture images\\mountain_lake.jpg"
+);
+
+    cout << "brick = " << texBrick << endl;
+cout << "board = " << texBoard << endl;
+cout << "mountain = " << texMountain << endl;
+
+    setupLights();
+    resetGame();
+
+    glutReshapeFunc(resize);
+    glutDisplayFunc(display);
+    glutKeyboardFunc(key);
+    glutSpecialFunc(specialKey);
+    glutTimerFunc(16, timerTick, 0);
+
     glutMainLoop();
-    return 0;
+    return EXIT_SUCCESS;
 }
